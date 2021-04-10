@@ -1,0 +1,16 @@
+.*
+!.gitignore
+*.so
+*.pyc
+__pycache__/
+*.png
+*.h5
+*.npz
+*.csv
+*.zip
+*.sh
+/tags
+*.ipynb
+events*
+utils/mailgun.py
+*.txt
