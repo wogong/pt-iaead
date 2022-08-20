@@ -16,7 +16,7 @@ This is the official implementation of the IAEAD framework presented by "Improve
 To obtain the results of IAEAD on MNIST with default settings, simply run the following command:
 
 ```bash
-python main.py --run_times=1 --gpu_id=0 --method=iae --dataset=mnist --ratio=0.1 --para_lambda=5e-5
+python main.py --run_times=1 --gpu_id=0 --method=RAE --dataset=mnist --ratio=0.1 --para_lambda=5e-5
 ```
 
 After training, to print UAD results for a specific algorithm in AUROC/AUPR, run:
