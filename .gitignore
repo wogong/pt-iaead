@@ -14,3 +14,4 @@ __pycache__/
 events*
 utils/mailgun.py
 *.txt
+.vscode

@@ -36,12 +36,12 @@ from utils.utils import (save_roc_pr_curve_data,
                          time_string,
                          visualize_tsne_points,
                          denormalize_minus1_1)
-from utils.mailgun import send_mailgun
 
 matplotlib.use('Agg')
 cudnn.benchmark = True
 HOST = socket.gethostname()
-RESULTS_DIR = '/home/wogong/models/rae/_raw/' + datetime.now().strftime('%Y-%m-%d-%H%M%S') + '-' + HOST
+RESULTS_DIR = 'results/models/rae/_raw/' + \
+    datetime.now().strftime('%Y-%m-%d-%H%M%S') + '-' + HOST
 logger = SummaryWriter(RESULTS_DIR)
 
 
@@ -64,7 +64,7 @@ def dec_loss_fun(rep, centroid):
     distance_norm = distance / torch.max(distance)
     q_pos = 1.0 / (1.0 + 5 * distance_norm)
     q_neg = 1 - q_pos
-    q = torch.cat( (q_pos, q_neg), dim=1)
+    q = torch.cat((q_pos, q_neg), dim=1)
     tmp = torch.sum(q, dim=0)
     q = (q.t() / torch.sum(q, dim=1)).t()
 
@@ -114,19 +114,24 @@ def train_cae(trainloader, model, class_name, testloader, y_train, device, args)
     for epoch in range(1, args.epochs + 1):
         model.train()
 
-        need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (args.epochs - epoch))
-        need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(need_hour, need_mins, need_secs)
-        print('{:3d}/{:3d} ----- {:s} {:s}'.format(epoch, args.epochs, time_string(), need_time))
+        need_hour, need_mins, need_secs = convert_secs2time(
+            epoch_time.avg * (args.epochs - epoch))
+        need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(
+            need_hour, need_mins, need_secs)
+        print('{:3d}/{:3d} ----- {:s} {:s}'.format(epoch,
+              args.epochs, time_string(), need_time))
 
-        mse = nn.MSELoss(reduction='mean') # default
+        mse = nn.MSELoss(reduction='mean')  # default
 
         lr = 0.1 / pow(2, np.floor(epoch / args.lr_schedule))
         logger.add_scalar(class_name + "/lr", lr, epoch)
 
         if args.optimizer == 'SGD':
-            optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=args.weight_decay)
+            optimizer = optim.SGD(model.parameters(), lr=lr,
+                                  weight_decay=args.weight_decay)
         else:
-            optimizer = optim.Adam(model.parameters(), eps=1e-7, weight_decay=0.0005)
+            optimizer = optim.Adam(
+                model.parameters(), eps=1e-7, weight_decay=0.0005)
         for batch_idx, (input, _, _) in enumerate(trainloader):
             optimizer.zero_grad()
             input = input.to(device)
@@ -142,17 +147,20 @@ def train_cae(trainloader, model, class_name, testloader, y_train, device, args)
             optimizer.step()
 
         # print losses
-        print('Epoch: [{} | {}], loss: {:.4f}'.format(epoch, args.epochs, losses.avg))
+        print('Epoch: [{} | {}], loss: {:.4f}'.format(
+            epoch, args.epochs, losses.avg))
 
         # log images
         if epoch % args.log_img_steps == 0:
             os.makedirs(os.path.join(RESULTS_DIR, class_name), exist_ok=True)
-            fpath = os.path.join(RESULTS_DIR, class_name, 'pretrain_epoch_' + str(epoch) + '.png')
+            fpath = os.path.join(RESULTS_DIR, class_name,
+                                 'pretrain_epoch_' + str(epoch) + '.png')
             visualize(input, output, fpath, num=32)
 
         # test while training
         if epoch % args.log_auc_steps == 0:
-            rep, losses_result = test(testloader, model, class_name, args, device, epoch)
+            rep, losses_result = test(
+                testloader, model, class_name, args, device, epoch)
 
             centroid = torch.mean(rep, dim=0, keepdim=True)
 
@@ -162,10 +170,11 @@ def train_cae(trainloader, model, class_name, testloader, y_train, device, args)
             auroc_rec = roc_auc_score(y_train, scores)
 
             _, p = dec_loss_fun(rep, centroid)
-            score_p = p[:,0]
+            score_p = p[:, 0]
             auroc_dec = roc_auc_score(y_train, score_p)
 
-            print ("Epoch: [{} | {}], auroc_rec: {:.4f}; auroc_dec: {:.4f}".format(epoch, args.epochs, auroc_rec, auroc_dec))
+            print("Epoch: [{} | {}], auroc_rec: {:.4f}; auroc_dec: {:.4f}".format(
+                epoch, args.epochs, auroc_rec, auroc_dec))
 
             logger.add_scalar(class_name + '/auroc_rec', auroc_rec, epoch)
             logger.add_scalar(class_name + '/auroc_dec', auroc_dec, epoch)
@@ -202,21 +211,26 @@ def train_iae(trainloader, model, class_name, testloader, y_train, device, args)
     for epoch in range(1, args.epochs + 1):
         model.train()
 
-        need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (args.epochs - epoch))
-        need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(need_hour, need_mins, need_secs)
-        print('{:3d}/{:3d} ----- {:s} {:s}'.format(epoch, args.epochs, time_string(), need_time))
+        need_hour, need_mins, need_secs = convert_secs2time(
+            epoch_time.avg * (args.epochs - epoch))
+        need_time = '[Need: {:02d}:{:02d}:{:02d}]'.format(
+            need_hour, need_mins, need_secs)
+        print('{:3d}/{:3d} ----- {:s} {:s}'.format(epoch,
+              args.epochs, time_string(), need_time))
 
-        mse = nn.MSELoss(reduction='mean') # default
+        mse = nn.MSELoss(reduction='mean')  # default
 
         lr = 0.1 / pow(2, np.floor(epoch / args.lr_schedule))
         logger.add_scalar(class_name + "/lr", lr, epoch)
 
         if args.optimizer == 'sgd':
-            optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=args.weight_decay)
+            optimizer = optim.SGD(model.parameters(), lr=lr,
+                                  weight_decay=args.weight_decay)
         elif args.optimizer == 'adam':
-            optimizer = optim.Adam(model.parameters(), eps=1e-7, weight_decay=args.weight_decay)
+            optimizer = optim.Adam(
+                model.parameters(), eps=1e-7, weight_decay=args.weight_decay)
         else:
-            print ('not implemented.')
+            print('not implemented.')
 
         for batch_idx, (input, _, _) in enumerate(trainloader):
             optimizer.zero_grad()
@@ -227,7 +241,8 @@ def train_iae(trainloader, model, class_name, testloader, y_train, device, args)
             if epoch > args.pretrain_epochs:
                 dist = torch.sum((reps - c) ** 2, dim=1)
                 scores = dist - R ** 2
-                svdd_loss = args.para_lambda * (R ** 2 + (1 / args.para_nu) * torch.mean(torch.max(torch.zeros_like(scores), scores)))
+                svdd_loss = args.para_lambda * (R ** 2 + (1 / args.para_nu) * torch.mean(
+                    torch.max(torch.zeros_like(scores), scores)))
 
             l2_loss = mse(input, output)
 
@@ -237,8 +252,10 @@ def train_iae(trainloader, model, class_name, testloader, y_train, device, args)
             svdd_losses.update(svdd_loss.item(), 1)
             losses.update(loss.item(), 1)
 
-            logger.add_scalar(class_name + '/l2_loss', l2_losses.avg, global_step)
-            logger.add_scalar(class_name + '/svdd_loss', svdd_losses.avg, global_step)
+            logger.add_scalar(class_name + '/l2_loss',
+                              l2_losses.avg, global_step)
+            logger.add_scalar(class_name + '/svdd_loss',
+                              svdd_losses.avg, global_step)
             logger.add_scalar(class_name + '/loss', losses.avg, global_step)
 
             logger.add_scalar(class_name + '/R', R.data, global_step)
@@ -249,20 +266,24 @@ def train_iae(trainloader, model, class_name, testloader, y_train, device, args)
 
             # Update hypersphere radius R on mini-batch distances
             if epoch > args.pretrain_epochs:
-                R.data = torch.tensor(get_radius(dist, args.para_nu), device=device)
+                R.data = torch.tensor(get_radius(
+                    dist, args.para_nu), device=device)
 
         # print losses
-        print('Epoch: [{} | {}], loss: {:.4f}'.format(epoch, args.epochs, losses.avg))
+        print('Epoch: [{} | {}], loss: {:.4f}'.format(
+            epoch, args.epochs, losses.avg))
 
         # log images
         if epoch % args.log_img_steps == 0:
             os.makedirs(os.path.join(RESULTS_DIR, class_name), exist_ok=True)
-            fpath = os.path.join(RESULTS_DIR, class_name, 'pretrain_epoch_' + str(epoch) + '.png')
+            fpath = os.path.join(RESULTS_DIR, class_name,
+                                 'pretrain_epoch_' + str(epoch) + '.png')
             visualize(input, output, fpath, num=32)
 
         # test while training
         if epoch % args.log_auc_steps == 0:
-            rep, losses_result = test(testloader, model, class_name, args, device, epoch)
+            rep, losses_result = test(
+                testloader, model, class_name, args, device, epoch)
 
             centroid = torch.mean(rep, dim=0, keepdim=True)
 
@@ -275,14 +296,16 @@ def train_iae(trainloader, model, class_name, testloader, y_train, device, args)
             score_p = p[:, 0]
             auroc_dec = roc_auc_score(y_train, score_p)
 
-            print ("Epoch: [{} | {}], auroc_rec: {:.4f}; auroc_dec: {:.4f}".format(epoch, args.epochs, auroc_rec, auroc_dec))
+            print("Epoch: [{} | {}], auroc_rec: {:.4f}; auroc_dec: {:.4f}".format(
+                epoch, args.epochs, auroc_rec, auroc_dec))
 
             logger.add_scalar(class_name + '/auroc_rec', auroc_rec, epoch)
             logger.add_scalar(class_name + '/auroc_dec', auroc_dec, epoch)
 
         # initial centroid c before pretrain finished
         if epoch == args.pretrain_epochs:
-            rep, losses_result = test(testloader, model, class_name, args, device, epoch)
+            rep, losses_result = test(
+                testloader, model, class_name, args, device, epoch)
             c = update_center_c(rep)
 
         # time
@@ -348,7 +371,8 @@ def cae(x_train, y_train, class_idx, restore, args):
     :param args:
     :return:
     """
-    device = torch.device("cuda:" + args.gpu_id if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda:" + args.gpu_id if torch.cuda.is_available() else "cpu")
     transform_train = transforms.Compose([transforms.ToTensor(), ])
     transform_test = transforms.Compose([transforms.ToTensor(), ])
     if args.dataset == 'mnist' or args.dataset == 'fashion-mnist':
@@ -376,14 +400,18 @@ def cae(x_train, y_train, class_idx, restore, args):
                                train_labels=y_train,
                                transform=transform_test)
 
-    trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, drop_last=True)
-    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False)
+    trainloader = data.DataLoader(
+        trainset, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    testloader = data.DataLoader(
+        testset, batch_size=args.batch_size, shuffle=False)
 
     # training
     if not restore:
-        train_cae(trainloader, model, class_name, testloader, y_train, device, args)
+        train_cae(trainloader, model, class_name,
+                  testloader, y_train, device, args)
         if args.save_model == 1:
-            model_file_name = '{}_cae-{}_{}.model.npz'.format(args.dataset, args.ratio, class_name)
+            model_file_name = '{}_cae-{}_{}.model.npz'.format(
+                args.dataset, args.ratio, class_name)
             model_path = os.path.join(RESULTS_DIR, args.dataset)
             save_model(model, model_path, model_file_name)
     else:
@@ -396,9 +424,10 @@ def cae(x_train, y_train, class_idx, restore, args):
     # AUROC based on reconstruction losses
     losses = losses - losses.min()
     losses = losses / (1e-8 + losses.max())
-    scores = 1 - losses # normal: label=1, score near 1, loss near 0
+    scores = 1 - losses  # normal: label=1, score near 1, loss near 0
 
-    res_file_name = '{}_cae_rec-{}_{}_{}.npz'.format(args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
+    res_file_name = '{}_cae_rec-{}_{}_{}.npz'.format(
+        args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
     res_file_path = os.path.join(RESULTS_DIR, args.dataset, res_file_name)
     os.makedirs(os.path.join(RESULTS_DIR, args.dataset), exist_ok=True)
     auc_roc_rec = roc_auc_score(y_train, scores)
@@ -410,7 +439,8 @@ def cae(x_train, y_train, class_idx, restore, args):
     _, p = dec_loss_fun(reps, centroid)
     score_p = p[:, 0]
 
-    res_file_name = '{}_cae_dec-{}_{}_{}.npz'.format(args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
+    res_file_name = '{}_cae_dec-{}_{}_{}.npz'.format(
+        args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
     res_file_path = os.path.join(RESULTS_DIR, args.dataset, res_file_name)
     os.makedirs(os.path.join(RESULTS_DIR, args.dataset), exist_ok=True)
     auc_roc_dec = roc_auc_score(y_train, score_p)
@@ -427,7 +457,8 @@ def iae(x_train, y_train, class_idx, restore, args):
     :param args:
     :return:
     """
-    device = torch.device("cuda:" + args.gpu_id if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda:" + args.gpu_id if torch.cuda.is_available() else "cpu")
     transform_train = transforms.Compose([transforms.ToTensor(), ])
     transform_test = transforms.Compose([transforms.ToTensor(), ])
     if args.dataset == 'mnist' or args.dataset == 'fashion-mnist':
@@ -455,14 +486,18 @@ def iae(x_train, y_train, class_idx, restore, args):
                                train_labels=y_train,
                                transform=transform_test)
 
-    trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, drop_last=True)
-    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False)
+    trainloader = data.DataLoader(
+        trainset, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    testloader = data.DataLoader(
+        testset, batch_size=args.batch_size, shuffle=False)
 
     # training
     if not restore:
-        train_iae(trainloader, model, class_name, testloader, y_train, device, args)
+        train_iae(trainloader, model, class_name,
+                  testloader, y_train, device, args)
         if args.save_model == 1:
-            model_file_name = '{}_iae-{}_{}.model.npz'.format(args.dataset, args.ratio, class_name)
+            model_file_name = '{}_iae-{}_{}.model.npz'.format(
+                args.dataset, args.ratio, class_name)
             model_path = os.path.join(RESULTS_DIR, args.dataset)
             save_model(model, model_path, model_file_name)
     else:
@@ -475,9 +510,10 @@ def iae(x_train, y_train, class_idx, restore, args):
     # AUROC based on reconstruction losses
     losses = losses - losses.min()
     losses = losses / (1e-8 + losses.max())
-    scores = 1 - losses # normal: label=1, score near 1, loss near 0
+    scores = 1 - losses  # normal: label=1, score near 1, loss near 0
 
-    res_file_name = '{}_iae_rec-{}_{}_{}.npz'.format(args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
+    res_file_name = '{}_iae_rec-{}_{}_{}.npz'.format(
+        args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
     res_file_path = os.path.join(RESULTS_DIR, args.dataset, res_file_name)
     os.makedirs(os.path.join(RESULTS_DIR, args.dataset), exist_ok=True)
     auc_roc_rec = roc_auc_score(y_train, scores)
@@ -489,7 +525,8 @@ def iae(x_train, y_train, class_idx, restore, args):
     _, p = dec_loss_fun(reps, centroid)
     score_p = p[:, 0]
 
-    res_file_name = '{}_iae_dec-{}_{}_{}.npz'.format(args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
+    res_file_name = '{}_iae_dec-{}_{}_{}.npz'.format(
+        args.dataset, args.ratio, class_name, datetime.now().strftime('%Y-%m-%d-%H%M'))
     res_file_path = os.path.join(RESULTS_DIR, args.dataset, res_file_name)
     os.makedirs(os.path.join(RESULTS_DIR, args.dataset), exist_ok=True)
     auc_roc_dec = roc_auc_score(y_train, score_p)
@@ -499,26 +536,44 @@ def iae(x_train, y_train, class_idx, restore, args):
 
 def main():
     parser = argparse.ArgumentParser(description='RAE experiment parameters.')
-    parser.add_argument('--run_times', type=int, default=1, help='how many run times, default 1 time.')
-    parser.add_argument('--gpu_id', type=str, default='0', help='which gpu to use, default id 0.')
-    parser.add_argument('--dataset', type=str, default='cifar10', help='which dataset used.')
-    parser.add_argument('--normal_class', type=int, default=-1, help='which class used as normal class, default all classes.')
-    parser.add_argument('--ratio', type=float, default=-1, help='outlier ratio used, default all ratio [0.05, ..., 0.25]')
-    parser.add_argument('--batch_size', type=int, default=256, help='batch size.')
-    parser.add_argument('--epochs', type=int, default=250, help='training epochs.')
+    parser.add_argument('--run_times', type=int, default=1,
+                        help='how many run times, default 1 time.')
+    parser.add_argument('--gpu_id', type=str, default='0',
+                        help='which gpu to use, default id 0.')
+    parser.add_argument('--dataset', type=str,
+                        default='cifar10', help='which dataset used.')
+    parser.add_argument('--normal_class', type=int, default=-1,
+                        help='which class used as normal class, default all classes.')
+    parser.add_argument('--ratio', type=float, default=-1,
+                        help='outlier ratio used, default all ratio [0.05, ..., 0.25]')
+    parser.add_argument('--batch_size', type=int,
+                        default=256, help='batch size.')
+    parser.add_argument('--epochs', type=int, default=250,
+                        help='training epochs.')
 
-    parser.add_argument('--log_img_steps', type=int, default=1000, help='log_img_steps during training.')
-    parser.add_argument('--log_auc_steps', type=int, default=5, help='log_auc_steps during training.')
-    parser.add_argument('--save_model', type=int, default=0, help='whether save model, default 0, do not save.')
-    parser.add_argument('--method', type=str, default='IAE', help='choose which method to run, IAE or CAE.')
+    parser.add_argument('--log_img_steps', type=int,
+                        default=1000, help='log_img_steps during training.')
+    parser.add_argument('--log_auc_steps', type=int, default=5,
+                        help='log_auc_steps during training.')
+    parser.add_argument('--save_model', type=int, default=0,
+                        help='whether save model, default 0, do not save.')
+    parser.add_argument('--method', type=str, default='IAE',
+                        help='choose which method to run, IAE or CAE.')
 
-    parser.add_argument('--pretrain_epochs', type=int, default=20, help='how many pretrain steps before add svdd loss.')
-    parser.add_argument('--augmentation', type=int, default=0, help='turn on/off data augmentation, default off.')
-    parser.add_argument('--optimizer', type=str, default='sgd', help='SGD or ADAM (eps=1e-7, weight_decay=0.0005).')
-    parser.add_argument('--weight_decay', type=float, default=0, help='weight decay (L2 penalty), default 0')
-    parser.add_argument('--lr_schedule', type=float, default=50, help='learning rate schedule parameter.')
-    parser.add_argument('--para_nu', type=float, default=0.1, help='deep svdd parameter.')
-    parser.add_argument('--para_lambda', type=float, default=5e-5, help='deep svdd parameter.')
+    parser.add_argument('--pretrain_epochs', type=int, default=20,
+                        help='how many pretrain steps before add svdd loss.')
+    parser.add_argument('--augmentation', type=int, default=0,
+                        help='turn on/off data augmentation, default off.')
+    parser.add_argument('--optimizer', type=str, default='sgd',
+                        help='SGD or ADAM (eps=1e-7, weight_decay=0.0005).')
+    parser.add_argument('--weight_decay', type=float, default=0,
+                        help='weight decay (L2 penalty), default 0')
+    parser.add_argument('--lr_schedule', type=float, default=50,
+                        help='learning rate schedule parameter.')
+    parser.add_argument('--para_nu', type=float,
+                        default=0.1, help='deep svdd parameter.')
+    parser.add_argument('--para_lambda', type=float,
+                        default=5e-5, help='deep svdd parameter.')
 
     args = parser.parse_args()
 
@@ -561,10 +616,12 @@ def main():
 
                 # random sampling if the number of data is too large
                 if x_train.shape[0] > max_sample_num:
-                    selected = np.random.choice(x_train.shape[0], max_sample_num, replace=False)
+                    selected = np.random.choice(
+                        x_train.shape[0], max_sample_num, replace=False)
                     x_train = x_train[selected, :]
                     y_train = y_train[selected]
-                print('current training dataset: {}, normal class: {}, ratio: {}.'.format(dataset_name, class_name, ratio))
+                print('current training dataset: {}, normal class: {}, ratio: {}.'.format(
+                    dataset_name, class_name, ratio))
                 method(x_train, y_train, class_idx, None, args)
             if args.normal_class == -1:
                 pass
@@ -574,4 +631,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    send_mailgun()
